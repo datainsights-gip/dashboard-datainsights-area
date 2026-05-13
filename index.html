@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BI Dashboard — Área de Entregas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --surface: #111620;
+    --surface2: #181e2c;
+    --border: rgba(255,255,255,0.07);
+    --text: #e8eaf0;
+    --muted: #6b7592;
+    --accent: #4f8ef7;
+    --accent2: #a78bfa;
+    --green: #22c97a;
+    --yellow: #f5c842;
+    --red: #f25c5c;
+    --orange: #f7924f;
+
+    --red-block: #2a1212;
+    --red-border: #6b2020;
+    --yellow-block: #23200a;
+    --yellow-border: #6b5800;
+    --green-block: #0a2218;
+    --green-border: #1a6b44;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo-area { display: flex; align-items: center; gap: 12px; }
+  .logo-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .logo-text { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent); }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .last-update { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .refresh-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+  }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── FILTERS ── */
+  .filters-bar {
+    padding: 16px 32px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .filter-label { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; }
+  select, .filter-group { 
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  select:hover { border-color: var(--accent); }
+  .filter-sep { width: 1px; height: 24px; background: var(--border); }
+
+  /* ── MAIN ── */
+  .main { padding: 28px 32px; display: flex; flex-direction: column; gap: 28px; }
+
+  /* ── BIG NUMBERS ── */
+  .bignums {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+  }
+  .bignum {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 20px 16px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .bignum:hover { transform: translateY(-2px); border-color: rgba(79,142,247,0.3); }
+  .bignum::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent-line, var(--accent));
+  }
+  .bignum-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; font-family: 'DM Mono', monospace; margin-bottom: 10px; }
+  .bignum-value { font-family: 'Syne', sans-serif; font-size: 38px; font-weight: 800; line-height: 1; }
+  .bignum-delta { font-size: 11px; margin-top: 8px; display: flex; align-items: center; gap: 4px; }
+  .delta-up { color: var(--green); }
+  .delta-down { color: var(--red); }
+  .delta-neutral { color: var(--muted); }
+
+  /* ── SECTION HEADER ── */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 2px;
+    color: var(--muted);
+  }
+
+  /* ── GRID 2-col ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+  @media(max-width:900px){ .grid-2,.grid-3{ grid-template-columns:1fr; } }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .card-title {
+    font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* ── CHART CANVAS ── */
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* ── PROGRESS BARS ── */
+  .bar-item { margin-bottom: 12px; }
+  .bar-meta { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+  .bar-name { color: var(--text); }
+  .bar-count { color: var(--muted); font-family: 'DM Mono', monospace; }
+  .bar-track { background: rgba(255,255,255,0.05); border-radius: 4px; height: 6px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width 0.8s cubic-bezier(0.16,1,0.3,1); }
+
+  /* ── STATUS BADGE ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500;
+  }
+  .badge-green { background: rgba(34,201,122,0.12); color: var(--green); }
+  .badge-yellow { background: rgba(245,200,66,0.12); color: var(--yellow); }
+  .badge-red { background: rgba(242,92,92,0.12); color: var(--red); }
+  .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; max-height: 380px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--surface2);
+    padding: 10px 14px;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--muted); font-family: 'DM Mono', monospace;
+    border-bottom: 1px solid var(--border);
+    text-align: left; white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+  tbody tr:hover { background: rgba(255,255,255,0.03); }
+  tbody td { padding: 9px 14px; font-size: 12px; white-space: nowrap; }
+  .td-client { font-weight: 500; }
+  .td-obs { color: var(--muted); font-size: 11px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ── FAROL ── */
+  .farol-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media(max-width:900px){ .farol-grid{ grid-template-columns:1fr; } }
+  .farol-col {
+    border-radius: 12px;
+    border: 1px solid;
+    padding: 18px;
+    min-height: 180px;
+  }
+  .farol-col.red { background: var(--red-block); border-color: var(--red-border); }
+  .farol-col.yellow { background: var(--yellow-block); border-color: var(--yellow-border); }
+  .farol-col.green { background: var(--green-block); border-color: var(--green-border); }
+  .farol-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 14px;
+    font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1.5px;
+  }
+  .farol-header .icon { font-size: 16px; }
+  .farol-col.red .farol-header { color: #f25c5c; }
+  .farol-col.yellow .farol-header { color: #f5c842; }
+  .farol-col.green .farol-header { color: #22c97a; }
+  .farol-items { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .farol-item {
+    font-size: 12px; padding: 8px 12px; border-radius: 7px;
+    display: flex; align-items: flex-start; gap: 8px;
+    line-height: 1.4;
+  }
+  .farol-col.red .farol-item { background: rgba(242,92,92,0.08); }
+  .farol-col.yellow .farol-item { background: rgba(245,200,66,0.08); }
+  .farol-col.green .farol-item { background: rgba(34,201,122,0.08); }
+  .farol-bullet { flex-shrink: 0; margin-top: 2px; width: 6px; height: 6px; border-radius: 50%; }
+  .farol-col.red .farol-bullet { background: #f25c5c; }
+  .farol-col.yellow .farol-bullet { background: #f5c842; }
+  .farol-col.green .farol-bullet { background: #22c97a; }
+  .farol-add-btn {
+    margin-top: 10px; width: 100%;
+    background: transparent; border: 1px dashed rgba(255,255,255,0.1);
+    color: var(--muted); padding: 7px; border-radius: 7px;
+    cursor: pointer; font-size: 11px; font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+  }
+  .farol-add-btn:hover { border-color: rgba(255,255,255,0.3); color: var(--text); }
+  .farol-input {
+    width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text); padding: 8px 10px; border-radius: 7px;
+    font-size: 12px; font-family: 'DM Sans', sans-serif;
+    resize: none; outline: none; display: none; margin-top: 8px;
+  }
+
+  /* ── LOADING ── */
+  #loading {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 999;
+    gap: 16px;
+  }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to{ transform: rotate(360deg); } }
+  #loading p { color: var(--muted); font-family: 'DM Mono', monospace; font-size: 12px; }
+
+  /* ── EMPTY ── */
+  .empty-state { text-align: center; padding: 40px; color: var(--muted); font-size: 13px; }
+
+  /* ── TABS ── */
+  .tab-strip { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tab-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--muted); padding: 6px 14px; border-radius: 20px;
+    font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .tab-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .tab-btn:hover:not(.active) { border-color: rgba(79,142,247,0.4); color: var(--text); }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p>Carregando dados da planilha...</p>
+</div>
+
+<header>
+  <div class="logo-area">
+    <div class="logo-dot"></div>
+    <div class="logo-text">BI <span>Dashboard</span></div>
+    <div style="font-size:11px;color:var(--muted);margin-left:6px;font-family:'DM Mono',monospace;">/ Área de Entregas</div>
+  </div>
+  <div class="header-right">
+    <span class="last-update" id="last-update">—</span>
+    <button class="refresh-btn" onclick="loadAllData()">↻ Atualizar</button>
+  </div>
+</header>
+
+<div class="filters-bar">
+  <span class="filter-label">Mês</span>
+  <div class="tab-strip" id="month-tabs"></div>
+  <div class="filter-sep"></div>
+  <span class="filter-label">Responsável</span>
+  <select id="f-resp" onchange="applyFilters()"><option value="">Todos</option></select>
+  <span class="filter-label">Cliente</span>
+  <select id="f-client" onchange="applyFilters()"><option value="">Todos</option></select>
+  <span class="filter-label">Status</span>
+  <select id="f-status" onchange="applyFilters()"><option value="">Todos</option></select>
+</div>
+
+<div class="main">
+
+  <!-- BIG NUMBERS -->
+  <div>
+    <div class="section-header"><div class="section-title">Visão Geral do Mês</div></div>
+    <div class="bignums" id="bignums"></div>
+  </div>
+
+  <!-- CHARTS ROW 1 -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Volume por Mês</div>
+      <div class="chart-wrap"><canvas id="chart-monthly"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Distribuição por Tipo</div>
+      <div class="chart-wrap"><canvas id="chart-type"></canvas></div>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW 2 -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Distribuição por Responsável</div>
+      <div id="bar-resp"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Status por Tipo</div>
+      <div class="chart-wrap"><canvas id="chart-status-type"></canvas></div>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="card">
+    <div class="section-header">
+      <div class="card-title" style="margin:0">Entregas do Período</div>
+      <span id="table-count" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Entrega</th>
+            <th>Tipo</th>
+            <th>Data Prevista</th>
+            <th>Responsável</th>
+            <th>Status</th>
+            <th>Observação</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- FAROL -->
+  <div>
+    <div class="section-header">
+      <div class="section-title">🚦 Farol de Iniciativas</div>
+      <span style="font-size:11px;color:var(--muted);">Edite clicando em cada coluna — salvo localmente</span>
+    </div>
+    <div class="farol-grid">
+      <div class="farol-col red">
+        <div class="farol-header"><span class="icon">🔴</span> Bloqueado / Aguardando</div>
+        <ul class="farol-items" id="farol-red"></ul>
+        <button class="farol-add-btn" onclick="addFarolItem('red')">+ Adicionar item</button>
+      </div>
+      <div class="farol-col yellow">
+        <div class="farol-header"><span class="icon">🟡</span> Em Produção / Endereçando</div>
+        <ul class="farol-items" id="farol-yellow"></ul>
+        <button class="farol-add-btn" onclick="addFarolItem('yellow')">+ Adicionar item</button>
+      </div>
+      <div class="farol-col green">
+        <div class="farol-header"><span class="icon">🟢</span> Concluído / Feito</div>
+        <ul class="farol-items" id="farol-green"></ul>
+        <button class="farol-add-btn" onclick="addFarolItem('green')">+ Adicionar item</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const SHEET_ID = '1gMX9mSwl95g0w10XbiYkXPol6tkrymqUV3VMECfMmO8';
+const MONTHS = ['Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro','Jan/26','Fev/26','Mar/26','Abr/26','Mai/26'];
+const MONTH_KEYS = ['Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro','Jan/26','Fev/26','Mar/26','Abr/26','Mai/26'];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let allData = {};      // { sheetName: [rows] }
+let currentMonth = 'Mai/26';
+let filteredRows = [];
+let charts = {};
+
+// ─── TYPE DETECTION ───────────────────────────────────────────────────────────
+function detectType(entrega) {
+  if (!entrega) return 'Outros';
+  const e = entrega.toLowerCase();
+  if (e.includes('report diario') || e.includes('report diário') || e.includes('report semanal') || e.includes('status semanal')) return 'Report Periódico';
+  if (e.includes('report gd')) return 'Report GD';
+  if (e.includes('farmacovigilância') || e.includes('farmacovigilancia')) return 'Farmacovigilância';
+  if (e.includes('report mensal') || e.includes('report bimestral') || e.includes('report trimestral')) return 'Report Mensal/Bimestral';
+  if (e.includes('dashboard') || e.includes('dash')) return 'Dashboard';
+  if (e.includes('listening') || e.includes('monitoramento')) return 'Monitoramento';
+  if (e.includes('radar') || e.includes('análise') || e.includes('analise') || e.includes('insights')) return 'Estudo/Análise';
+  if (e.includes('base report') || e.includes('report pr')) return 'Report PR/Base';
+  if (e.includes('alerta')) return 'Alerta';
+  if (e.includes('copa') || e.includes('awon')) return 'Projeto Especial';
+  if (e.includes('agentic') || e.includes('visa') || e.includes('pix') || e.includes('trump')) return 'Estudo/Análise';
+  return 'Outros';
+}
+
+// ─── FETCH DATA ───────────────────────────────────────────────────────────────
+async function fetchSheet(sheetName) {
+  const encoded = encodeURIComponent(sheetName);
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encoded}`;
+  try {
+    const res = await fetch(url);
+    const text = await res.text();
+    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+    const rows = json.table.rows;
+    const cols = json.table.cols;
+    return rows.map(r => {
+      const obj = {};
+      cols.forEach((c, i) => {
+        obj[c.label || c.id] = r.c[i]?.v ?? r.c[i]?.f ?? '';
+      });
+      return obj;
+    }).filter(r => r['Cliente'] || r['Entrega']);
+  } catch(e) {
+    console.warn('Sheet not found:', sheetName, e);
+    return [];
+  }
+}
+
+async function loadAllData() {
+  document.getElementById('loading').style.display = 'flex';
+  for (const m of MONTH_KEYS) {
+    const rows = await fetchSheet(m);
+    if (rows.length > 0) allData[m] = rows;
+  }
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('last-update').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+  buildMonthTabs();
+  buildFilterOptions();
+  renderAll();
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function buildMonthTabs() {
+  const available = MONTH_KEYS.filter(m => allData[m]?.length > 0);
+  const strip = document.getElementById('month-tabs');
+  strip.innerHTML = '';
+  available.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (m === currentMonth ? ' active' : '');
+    btn.textContent = m;
+    btn.onclick = () => { currentMonth = m; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); buildFilterOptions(); applyFilters(); };
+    strip.appendChild(btn);
+  });
+  if (!allData[currentMonth] && available.length > 0) currentMonth = available[available.length - 1];
+}
+
+// ─── FILTERS ──────────────────────────────────────────────────────────────────
+function buildFilterOptions() {
+  const rows = allData[currentMonth] || [];
+  const fill = (id, key) => {
+    const sel = document.getElementById(id);
+    const cur = sel.value;
+    const vals = [...new Set(rows.map(r => r[key]).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">Todos</option>' + vals.map(v => `<option value="${v}">${v}</option>`).join('');
+    if (vals.includes(cur)) sel.value = cur;
+  };
+  fill('f-resp', 'Responsável');
+  fill('f-client', 'Cliente');
+  fill('f-status', 'Status');
+  applyFilters();
+}
+
+function applyFilters() {
+  const resp = document.getElementById('f-resp').value;
+  const client = document.getElementById('f-client').value;
+  const status = document.getElementById('f-status').value;
+  let rows = allData[currentMonth] || [];
+  if (resp) rows = rows.filter(r => r['Responsável'] === resp);
+  if (client) rows = rows.filter(r => r['Cliente'] === client);
+  if (status) rows = rows.filter(r => String(r['Status']).includes(status));
+  filteredRows = rows;
+  renderCurrentMonth();
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function renderAll() {
+  applyFilters();
+  renderMonthlyChart();
+}
+
+function renderCurrentMonth() {
+  renderBignums();
+  renderTable();
+  renderRespBars();
+  renderTypeChart();
+  renderStatusTypeChart();
+}
+
+// ─── BIG NUMBERS ─────────────────────────────────────────────────────────────
+function renderBignums() {
+  const rows = filteredRows;
+  const prevMonth = getPrevMonthData();
+
+  const total = rows.length;
+  const entregue = rows.filter(r => String(r['Status']).toLowerCase().includes('entregue')).length;
+  const producao = rows.filter(r => String(r['Status']).toLowerCase().includes('produção') || String(r['Status']).toLowerCase().includes('producao')).length;
+  const clientes = new Set(rows.map(r => r['Cliente'])).size;
+  const resp = new Set(rows.map(r => r['Responsável'])).size;
+
+  const pTotal = prevMonth.length;
+  const pEntregue = prevMonth.filter(r => String(r['Status']).toLowerCase().includes('entregue')).length;
+
+  const nums = [
+    { label: 'Total de Entregas', value: total, delta: total - pTotal, color: 'var(--accent)', icon: '📦' },
+    { label: 'Entregues', value: entregue, delta: entregue - pEntregue, color: 'var(--green)', icon: '✅' },
+    { label: 'Em Produção', value: producao, delta: null, color: 'var(--yellow)', icon: '⚙️' },
+    { label: 'Taxa Entrega', value: total ? Math.round(entregue/total*100)+'%' : '—', delta: null, color: 'var(--accent2)', icon: '📊' },
+    { label: 'Clientes', value: clientes, delta: null, color: 'var(--orange)', icon: '🏢' },
+    { label: 'Responsáveis', value: resp, delta: null, color: '#a78bfa', icon: '👤' },
+  ];
+
+  const container = document.getElementById('bignums');
+  container.innerHTML = nums.map(n => {
+    let deltaHtml = '';
+    if (n.delta !== null) {
+      const sign = n.delta > 0 ? '+' : '';
+      const cls = n.delta > 0 ? 'delta-up' : n.delta < 0 ? 'delta-down' : 'delta-neutral';
+      deltaHtml = `<div class="bignum-delta ${cls}">${sign}${n.delta} vs mês ant.</div>`;
+    } else {
+      deltaHtml = `<div class="bignum-delta delta-neutral">— vs mês ant.</div>`;
+    }
+    return `
+      <div class="bignum" style="--accent-line:${n.color}">
+        <div class="bignum-label">${n.label}</div>
+        <div class="bignum-value" style="color:${n.color}">${n.value}</div>
+        ${deltaHtml}
+      </div>`;
+  }).join('');
+}
+
+function getPrevMonthData() {
+  const idx = MONTH_KEYS.indexOf(currentMonth);
+  if (idx <= 0) return [];
+  for (let i = idx - 1; i >= 0; i--) {
+    if (allData[MONTH_KEYS[i]]?.length > 0) return allData[MONTH_KEYS[i]];
+  }
+  return [];
+}
+
+// ─── TABLE ────────────────────────────────────────────────────────────────────
+function renderTable() {
+  const rows = filteredRows;
+  document.getElementById('table-count').textContent = rows.length + ' registros';
+  const tbody = document.getElementById('table-body');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhum dado encontrado</td></tr>'; return; }
+  tbody.innerHTML = rows.map(r => {
+    const status = String(r['Status'] || '');
+    let badgeClass = 'badge-yellow';
+    if (status.toLowerCase().includes('entregue')) badgeClass = 'badge-green';
+    else if (status.toLowerCase().includes('cancel') || status.toLowerCase().includes('block')) badgeClass = 'badge-red';
+    const date = r['Data Prevista'] ? formatDate(r['Data Prevista']) : '—';
+    const obs = r['Obs'] || r['Observações'] || r['Observacao'] || '';
+    return `<tr>
+      <td class="td-client">${r['Cliente'] || '—'}</td>
+      <td>${r['Entrega'] || '—'}</td>
+      <td><span style="font-size:11px;color:var(--muted)">${detectType(r['Entrega'])}</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${date}</td>
+      <td>${r['Responsável'] || '—'}</td>
+      <td><span class="badge ${badgeClass}"><span class="badge-dot"></span>${status || '—'}</span></td>
+      <td class="td-obs" title="${obs}">${obs || ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function formatDate(val) {
+  if (!val) return '—';
+  if (typeof val === 'string' && val.includes('/')) return val;
+  try {
+    const d = new Date(val);
+    if (isNaN(d)) return String(val);
+    return d.toLocaleDateString('pt-BR');
+  } catch { return String(val); }
+}
+
+// ─── RESP BARS ────────────────────────────────────────────────────────────────
+function renderRespBars() {
+  const rows = filteredRows;
+  const counts = {};
+  rows.forEach(r => { const k = r['Responsável'] || 'N/D'; counts[k] = (counts[k]||0)+1; });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const max = sorted[0]?.[1] || 1;
+  const COLORS = ['var(--accent)','var(--accent2)','var(--green)','var(--orange)','var(--yellow)','#f25c5c'];
+  document.getElementById('bar-resp').innerHTML = sorted.map(([name, count], i) => `
+    <div class="bar-item">
+      <div class="bar-meta"><span class="bar-name">${name}</span><span class="bar-count">${count}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(count/max*100)}%;background:${COLORS[i%COLORS.length]}"></div></div>
+    </div>`).join('');
+}
+
+// ─── CHARTS ───────────────────────────────────────────────────────────────────
+const CHART_DEFAULTS = {
+  font: { family: 'DM Sans' },
+  color: '#6b7592',
+};
+Chart.defaults.color = '#6b7592';
+Chart.defaults.font.family = 'DM Sans';
+
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function renderMonthlyChart() {
+  destroyChart('monthly');
+  const labels = MONTH_KEYS.filter(m => allData[m]?.length > 0);
+  const entregues = labels.map(m => (allData[m]||[]).filter(r => String(r['Status']).toLowerCase().includes('entregue')).length);
+  const totals = labels.map(m => (allData[m]||[]).length);
+
+  charts['monthly'] = new Chart(document.getElementById('chart-monthly'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Total', data: totals, backgroundColor: 'rgba(79,142,247,0.2)', borderColor: '#4f8ef7', borderWidth: 1.5, borderRadius: 5 },
+        { label: 'Entregues', data: entregues, backgroundColor: 'rgba(34,201,122,0.3)', borderColor: '#22c97a', borderWidth: 1.5, borderRadius: 5 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { boxWidth: 10, font: { size: 11 } } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { font: { size: 10 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { stepSize: 5, font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+function renderTypeChart() {
+  destroyChart('type');
+  const rows = filteredRows;
+  const counts = {};
+  rows.forEach(r => { const t = detectType(r['Entrega']); counts[t] = (counts[t]||0)+1; });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const COLORS = ['#4f8ef7','#a78bfa','#22c97a','#f5c842','#f7924f','#f25c5c','#38bdf8','#fb7185'];
+
+  charts['type'] = new Chart(document.getElementById('chart-type'), {
+    type: 'doughnut',
+    data: {
+      labels: sorted.map(s=>s[0]),
+      datasets: [{ data: sorted.map(s=>s[1]), backgroundColor: COLORS, borderWidth: 0, hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } } },
+      cutout: '65%'
+    }
+  });
+}
+
+function renderStatusTypeChart() {
+  destroyChart('status-type');
+  const rows = filteredRows;
+  const types = [...new Set(rows.map(r => detectType(r['Entrega'])))].sort();
+  const entregue = types.map(t => rows.filter(r => detectType(r['Entrega'])===t && String(r['Status']).toLowerCase().includes('entregue')).length);
+  const producao = types.map(t => rows.filter(r => detectType(r['Entrega'])===t && (String(r['Status']).toLowerCase().includes('produção')||String(r['Status']).toLowerCase().includes('producao'))).length);
+
+  charts['status-type'] = new Chart(document.getElementById('chart-status-type'), {
+    type: 'bar',
+    data: {
+      labels: types.map(t => t.length > 18 ? t.slice(0,16)+'…' : t),
+      datasets: [
+        { label: 'Entregue', data: entregue, backgroundColor: 'rgba(34,201,122,0.5)', borderColor: '#22c97a', borderWidth: 1.5, borderRadius: 4 },
+        { label: 'Em Produção', data: producao, backgroundColor: 'rgba(245,200,66,0.4)', borderColor: '#f5c842', borderWidth: 1.5, borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { labels: { boxWidth: 10, font: { size: 11 } } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { stepSize: 1, font: { size: 10 } }, stacked: true },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { font: { size: 10 } }, stacked: true }
+      }
+    }
+  });
+}
+
+// ─── FAROL ────────────────────────────────────────────────────────────────────
+const FAROL_KEY = 'bi-dashboard-farol';
+let farolData = { red: [], yellow: [], green: [] };
+
+function loadFarol() {
+  try { farolData = JSON.parse(localStorage.getItem(FAROL_KEY)) || { red: [], yellow: [], green: [] }; } catch {}
+  renderFarol();
+}
+
+function renderFarol() {
+  ['red','yellow','green'].forEach(color => {
+    const ul = document.getElementById('farol-'+color);
+    ul.innerHTML = farolData[color].map((item, i) => `
+      <li class="farol-item">
+        <span class="farol-bullet"></span>
+        <span style="flex:1">${item}</span>
+        <button onclick="removeFarolItem('${color}',${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0 4px;flex-shrink:0">✕</button>
+      </li>`).join('');
+  });
+}
+
+function addFarolItem(color) {
+  const txt = prompt('Novo item para o farol:');
+  if (!txt?.trim()) return;
+  farolData[color].push(txt.trim());
+  saveFarol();
+  renderFarol();
+}
+
+function removeFarolItem(color, idx) {
+  farolData[color].splice(idx, 1);
+  saveFarol();
+  renderFarol();
+}
+
+function saveFarol() {
+  localStorage.setItem(FAROL_KEY, JSON.stringify(farolData));
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+loadFarol();
+loadAllData();
+</script>
+</body>
+</html>
