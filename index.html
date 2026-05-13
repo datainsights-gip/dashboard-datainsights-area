@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BI Dashboard — Área de Entregas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --surface: #ffffff;
+    --surface2: #eef1f8;
+    --border: #dde2ef;
+    --text: #1a2035;
+    --muted: #7a85a3;
+    --accent: #2563eb;
+    --accent2: #7c3aed;
+    --green: #16a34a;
+    --green-bg: #f0fdf4;
+    --green-border: #bbf7d0;
+    --yellow: #b45309;
+    --yellow-bg: #fffbeb;
+    --yellow-border: #fde68a;
+    --red: #dc2626;
+    --red-bg: #fef2f2;
+    --red-border: #fecaca;
+    --orange: #c2410c;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; min-height: 100vh; }
+
+  /* ── LOGIN ── */
+  #login-overlay {
+    position: fixed; inset: 0; background: #f4f6fb;
+    display: flex; align-items: center; justify-content: center; z-index: 9999;
+  }
+  .login-box {
+    background: white; border: 1px solid var(--border); border-radius: 16px;
+    padding: 48px 44px; width: 360px; box-shadow: 0 4px 32px rgba(37,99,235,0.08);
+    display: flex; flex-direction: column; gap: 20px;
+  }
+  .login-logo { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; }
+  .login-logo span { color: var(--accent); }
+  .login-sub { font-size: 12px; color: var(--muted); margin-top: -12px; }
+  .login-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-family: 'DM Mono', monospace; margin-bottom: 6px; }
+  .login-input {
+    width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--bg);
+    outline: none; transition: border-color 0.2s;
+  }
+  .login-input:focus { border-color: var(--accent); }
+  .login-btn {
+    width: 100%; padding: 11px; background: var(--accent); color: white;
+    border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif; cursor: pointer; transition: background 0.2s;
+  }
+  .login-btn:hover { background: #1d4ed8; }
+  .login-error { font-size: 12px; color: var(--red); text-align: center; display: none; }
+
+  /* ── LOADING ── */
+  #loading {
+    position: fixed; inset: 0; background: rgba(244,246,251,0.92);
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 999; gap: 14px;
+  }
+  .spinner { width: 36px; height: 36px; border: 2.5px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.75s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading p { color: var(--muted); font-family: 'DM Mono', monospace; font-size: 12px; }
+
+  /* ── DEBUG PANEL (hidden by default) ── */
+  #debug-panel { display:none; background:#1a2035; color:#e8eaf0; padding:12px 16px; font-family:'DM Mono',monospace; font-size:11px; max-height:200px; overflow-y:auto; }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px; border-bottom: 1px solid var(--border);
+    background: white; position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .logo-area { display: flex; align-items: center; gap: 10px; }
+  .logo-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px rgba(37,99,235,0.5); animation: pulse 2.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .logo-text { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; }
+  .logo-text span { color: var(--accent); }
+  .logo-sub { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .last-update { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .refresh-btn {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px;
+    font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); background: #eff6ff; }
+
+  /* ── FILTERS ── */
+  .filters-bar {
+    padding: 12px 32px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    background: white; border-bottom: 1px solid var(--border);
+  }
+  .filter-label { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 1px; }
+  select {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 12px; border-radius: 6px; font-size: 13px; font-family: 'DM Sans', sans-serif;
+    cursor: pointer; outline: none; transition: border-color 0.2s;
+  }
+  select:hover { border-color: var(--accent); }
+  .filter-sep { width: 1px; height: 22px; background: var(--border); }
+  .tab-strip { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tab-btn {
+    background: var(--bg); border: 1px solid var(--border); color: var(--muted);
+    padding: 5px 13px; border-radius: 20px; font-size: 12px; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; transition: all 0.2s; white-space: nowrap;
+  }
+  .tab-btn.active { background: var(--accent); border-color: var(--accent); color: white; font-weight: 600; }
+  .tab-btn:hover:not(.active) { border-color: var(--accent); color: var(--accent); background: #eff6ff; }
+
+  /* ── MAIN ── */
+  .main { padding: 24px 32px; display: flex; flex-direction: column; gap: 24px; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .section-title { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); }
+
+  /* ── BIG NUMBERS ── */
+  .bignums { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px,1fr)); gap: 12px; }
+  .bignum {
+    background: white; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 18px 14px; position: relative; overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .bignum:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(37,99,235,0.09); }
+  .bignum::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--accent-line, var(--accent)); border-radius: 12px 12px 0 0;
+  }
+  .bignum-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; font-family: 'DM Mono', monospace; margin-bottom: 8px; }
+  .bignum-value { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800; line-height: 1; }
+  .bignum-delta { font-size: 11px; margin-top: 9px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .delta-pill { display: inline-flex; align-items: center; gap: 2px; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; font-family: 'DM Mono', monospace; white-space: nowrap; }
+  .delta-up { background: #dcfce7; color: #16a34a; }
+  .delta-down { background: #fee2e2; color: #dc2626; }
+  .delta-flat { background: #f1f5f9; color: var(--muted); }
+  .delta-label { font-size: 10px; color: var(--muted); }
+
+  /* ── CARDS ── */
+  .card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .card-title { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 16px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media(max-width:900px){ .grid-2{ grid-template-columns:1fr; } }
+  .chart-wrap { position: relative; height: 230px; }
+
+  /* ── RESP BARS ── */
+  .bar-item { margin-bottom: 11px; }
+  .bar-meta { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+  .bar-name { color: var(--text); }
+  .bar-count { color: var(--muted); font-family: 'DM Mono', monospace; font-size: 11px; }
+  .bar-track { background: var(--surface2); border-radius: 4px; height: 7px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.8s cubic-bezier(0.16,1,0.3,1); }
+
+  /* ── BADGE ── */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+  .badge-green { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
+  .badge-red { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+  .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; max-height: 390px; overflow-y: auto; border-radius: 8px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    position: sticky; top: 0; z-index: 2; background: var(--surface2);
+    padding: 9px 13px; font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--muted); font-family: 'DM Mono', monospace;
+    border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #f8faff; }
+  tbody td { padding: 8px 13px; font-size: 12px; white-space: nowrap; }
+  .td-client { font-weight: 600; }
+  .td-obs { color: var(--muted); font-size: 11px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ── STATUS INFO BOX ── */
+  .status-summary {
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+    padding: 10px 14px; font-size: 12px; color: #92400e;
+    margin-bottom: 12px; display: none;
+  }
+
+  /* ── FAROL ── */
+  .farol-section { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 28px 28px 24px; }
+  .farol-top { margin-bottom: 22px; }
+  .farol-main-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800; color: var(--text); }
+  .farol-main-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .farol-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+  @media(max-width:900px){ .farol-grid{ grid-template-columns:1fr; } }
+  .farol-col { border-radius: 10px; border: 1.5px solid; padding: 20px 20px 16px; }
+  .farol-col.red { background: #fff5f5; border-color: #fca5a5; }
+  .farol-col.yellow { background: #fffbeb; border-color: #fcd34d; }
+  .farol-col.green { background: #f0fdf4; border-color: #86efac; }
+  .farol-col-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .farol-col-title { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+  .farol-col.red .farol-col-title { color: #b91c1c; }
+  .farol-col.yellow .farol-col-title { color: #92400e; }
+  .farol-col.green .farol-col-title { color: #166534; }
+  .farol-count { font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 20px; }
+  .farol-col.red .farol-count { background: #fee2e2; color: #dc2626; }
+  .farol-col.yellow .farol-count { background: #fef3c7; color: #92400e; }
+  .farol-col.green .farol-count { background: #dcfce7; color: #16a34a; }
+  .farol-items { list-style: none; display: flex; flex-direction: column; gap: 8px; min-height: 100px; }
+  .farol-item { font-size: 13px; padding: 10px 12px; border-radius: 8px; display: flex; align-items: flex-start; gap: 9px; line-height: 1.5; }
+  .farol-col.red .farol-item { background: white; border: 1px solid #fecaca; }
+  .farol-col.yellow .farol-item { background: white; border: 1px solid #fde68a; }
+  .farol-col.green .farol-item { background: white; border: 1px solid #bbf7d0; }
+  .farol-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .farol-text { flex: 1; color: var(--text); }
+  .farol-del { background: none; border: none; cursor: pointer; font-size: 12px; color: var(--muted); padding: 0 2px; flex-shrink: 0; transition: color 0.15s; }
+  .farol-del:hover { color: var(--red); }
+  .farol-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 24px 0; font-style: italic; }
+  .farol-add {
+    margin-top: 12px; width: 100%; background: transparent; border: 1.5px dashed rgba(0,0,0,0.13);
+    color: var(--muted); padding: 9px; border-radius: 8px; cursor: pointer;
+    font-size: 12px; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .farol-col.red .farol-add:hover { border-color: #f87171; color: #dc2626; background: #fff5f5; }
+  .farol-col.yellow .farol-add:hover { border-color: #fbbf24; color: #92400e; background: #fffbeb; }
+  .farol-col.green .farol-add:hover { border-color: #4ade80; color: #16a34a; background: #f0fdf4; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-overlay">
+  <div class="login-box">
+    <div>
+      <div class="login-logo">BI <span>Dashboard</span></div>
+      <div class="login-sub">Área de Entregas — Acesso Restrito</div>
+    </div>
+    <div>
+      <div class="login-label">Senha de Acesso</div>
+      <input class="login-input" type="password" id="login-pwd" placeholder="••••••••••••••"
+        onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error">Senha incorreta. Tente novamente.</div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="spinner"></div>
+  <p id="loading-msg">Carregando dados...</p>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+
+<div id="debug-panel"></div>
+
+<header>
+  <div class="logo-area">
+    <div class="logo-dot"></div>
+    <div class="logo-text">BI <span>Dashboard</span></div>
+    <div class="logo-sub">/ Área de Entregas · 2026</div>
+  </div>
+  <div class="header-right">
+    <span class="last-update" id="last-update">—</span>
+    <button class="refresh-btn" onclick="reloadData()">↻ Atualizar</button>
+  </div>
+</header>
+
+<div class="filters-bar">
+  <span class="filter-label">Mês</span>
+  <div class="tab-strip" id="month-tabs"></div>
+  <div class="filter-sep"></div>
+  <span class="filter-label">Responsável</span>
+  <select id="f-resp" onchange="applyFilters()"><option value="">Todos</option></select>
+  <span class="filter-label">Cliente</span>
+  <select id="f-client" onchange="applyFilters()"><option value="">Todos</option></select>
+  <span class="filter-label">Status</span>
+  <select id="f-status" onchange="applyFilters()"><option value="">Todos</option></select>
+</div>
+
+<div class="main">
+
+  <div>
+    <div class="section-header"><div class="section-title">Visão Geral do Mês</div></div>
+    <div class="status-summary" id="status-summary"></div>
+    <div class="bignums" id="bignums"></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Evolução de Entregas · 2026</div>
+      <div class="chart-wrap"><canvas id="chart-monthly"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Distribuição por Tipo</div>
+      <div class="chart-wrap"><canvas id="chart-type"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Volume por Responsável</div>
+      <div id="bar-resp"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Status por Tipo de Entrega</div>
+      <div class="chart-wrap"><canvas id="chart-status-type"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-header">
+      <div class="card-title" style="margin:0">Entregas do Período</div>
+      <span id="table-count" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Cliente</th><th>Entrega</th><th>Tipo</th>
+            <th>Data Prevista</th><th>Responsável</th><th>Status</th><th>Observação</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="farol-section">
+    <div class="farol-top">
+      <div class="farol-main-title">🚦 Farol de Iniciativas da Área</div>
+      <div class="farol-main-sub">Clique em "+ Adicionar item" para registrar. Os itens ficam salvos no navegador.</div>
+    </div>
+    <div class="farol-grid">
+      <div class="farol-col red">
+        <div class="farol-col-header">
+          <div class="farol-col-title">🔴 Bloqueado / Aguardando</div>
+          <span class="farol-count" id="cnt-red">0</span>
+        </div>
+        <ul class="farol-items" id="farol-red"></ul>
+        <button class="farol-add" onclick="addFarol('red')">+ Adicionar item</button>
+      </div>
+      <div class="farol-col yellow">
+        <div class="farol-col-header">
+          <div class="farol-col-title">🟡 Em Produção / Endereçando</div>
+          <span class="farol-count" id="cnt-yellow">0</span>
+        </div>
+        <ul class="farol-items" id="farol-yellow"></ul>
+        <button class="farol-add" onclick="addFarol('yellow')">+ Adicionar item</button>
+      </div>
+      <div class="farol-col green">
+        <div class="farol-col-header">
+          <div class="farol-col-title">🟢 Concluído / Entregue</div>
+          <span class="farol-count" id="cnt-green">0</span>
+        </div>
+        <ul class="farol-items" id="farol-green"></ul>
+        <button class="farol-add" onclick="addFarol('green')">+ Adicionar item</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div><!-- /app -->
+
+<script>
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+const PASS = 'DataInsights2026';
+const SESS = 'bi-auth-26';
+
+function doLogin() {
+  const v = document.getElementById('login-pwd').value;
+  if (v === PASS) {
+    sessionStorage.setItem(SESS, '1');
+    document.getElementById('login-overlay').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadFarol();
+    reloadData();
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('login-pwd').value = '';
+    document.getElementById('login-pwd').focus();
+  }
+}
+if (sessionStorage.getItem(SESS) === '1') {
+  document.getElementById('login-overlay').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+}
+
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const SHEET_ID = '1gMX9mSwl95g0w10XbiYkXPol6tkrymqUV3VMECfMmO8';
+
+// Exact sheet tab names as they appear in the spreadsheet
+// The spreadsheet uses Portuguese month abbreviations
+const ALL_SHEET_NAMES = [
+  'Jan/26', 'Fev/26', 'Mar/26', 'Abr/26', 'Mai/26',
+  'Jun/26', 'Jul/26', 'Ago/26', 'Set/26', 'Out/26', 'Nov/26', 'Dez/26'
+];
+
+let allData = {};           // sheetName -> rows[]
+let loadedSheets = [];      // only sheets that returned real data
+let currentMonth = '';
+let filteredRows = [];
+let charts = {};
+
+// ─── STATUS HELPERS ───────────────────────────────────────────────────────────
+// Normalise a status string to one of: 'entregue' | 'producao' | 'outro'
+function normStatus(raw) {
+  if (!raw) return 'outro';
+  // Remove accents, lowercase
+  const s = String(raw)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (s.includes('entregue')) return 'entregue';
+  if (s.includes('producao') || s.includes('em producao') || s.includes('producção') || s.includes('producção')) return 'producao';
+  // Catch "em produção" with original accents via simple check
+  if (raw.toLowerCase().includes('produ')) return 'producao';
+  if (s.includes('caiu')) return 'caiu';
+  return 'outro';
+}
+
+function isEntregue(r)  { return normStatus(r['Status']) === 'entregue'; }
+function isProducao(r)  { return normStatus(r['Status']) === 'producao'; }
+function isPendente(r)  { const ns = normStatus(r['Status']); return ns !== 'entregue' && ns !== 'producao'; }
+
+// ─── TYPE DETECTION ───────────────────────────────────────────────────────────
+function detectType(e) {
+  if (!e) return 'Outros';
+  const s = e.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (s.includes('farmacovigilancia') || s.includes('farmacovigilanc')) return 'Farmacovigilância';
+  if (s.includes('alerta') || s.includes('report semanal') || s.includes('status semanal') || s.includes('report diario')) return 'Report Periódico';
+  if (s.includes('report gd')) return 'Report GD';
+  if (s.includes('report mensal') || s.includes('report bimestral') || s.includes('report pr') || s.includes('base report')) return 'Report Mensal+';
+  if (s.includes('dashboard') || s.includes('dash')) return 'Dashboard';
+  if (s.includes('listening') || s.includes('monitoramento')) return 'Monitoramento';
+  if (s.includes('analise') || s.includes('insights') || s.includes('agentic') || s.includes('radar')) return 'Estudo / Análise';
+  if (s.includes('copa') || s.includes('awon')) return 'Projeto Especial';
+  return 'Outros';
+}
+
+// ─── FETCH ONE SHEET ─────────────────────────────────────────────────────────
+async function fetchSheet(name) {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}&headers=1`;
+  try {
+    const res = await fetch(url, { cache: 'no-cache' });
+    const txt = await res.text();
+
+    // Extract JSON from the JSONP wrapper
+    const match = txt.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?\s*$/);
+    if (!match) {
+      debugLog(`[${name}] No JSON match in response`);
+      return [];
+    }
+
+    const json = JSON.parse(match[1]);
+
+    if (json.status === 'error') {
+      debugLog(`[${name}] API error: ${JSON.stringify(json.errors)}`);
+      return [];
+    }
+
+    const table = json.table;
+    if (!table || !table.cols || !table.rows) {
+      debugLog(`[${name}] Empty table`);
+      return [];
+    }
+
+    // Build column label map
+    // The spreadsheet columns (from the image/CSV):
+    // A=Cliente, F=Entrega, G=Data Prevista, H=Dia da semana, J=Responsável, K=Status, M=Obs
+    // gviz returns columns by their header labels
+    const cols = table.cols.map((c, i) => ({ idx: i, label: (c.label || c.id || '').trim() }));
+
+    debugLog(`[${name}] cols: ${cols.map(c => c.label).join(' | ')}`);
+
+    const rows = (table.rows || []).map(r => {
+      const obj = {};
+      cols.forEach(c => {
+        const cell = r.c ? r.c[c.idx] : null;
+        obj[c.label] = cell ? (cell.f ?? cell.v ?? '') : '';
+      });
+      return obj;
+    });
+
+    // Filter out completely empty rows
+    const valid = rows.filter(r => {
+      const keys = Object.keys(r);
+      return keys.some(k => String(r[k]).trim() !== '');
+    });
+
+    debugLog(`[${name}] ${valid.length} rows loaded. Sample status values: ${[...new Set(valid.slice(0,20).map(r => r['Status']))].join(', ')}`);
+
+    return valid;
+  } catch(err) {
+    debugLog(`[${name}] Fetch error: ${err.message}`);
+    return [];
+  }
+}
+
+function debugLog(msg) {
+  const panel = document.getElementById('debug-panel');
+  const line = document.createElement('div');
+  line.textContent = msg;
+  panel.appendChild(line);
+  console.log('[Dashboard]', msg);
+}
+
+// ─── LOAD ALL ─────────────────────────────────────────────────────────────────
+async function reloadData() {
+  allData = {};
+  loadedSheets = [];
+  document.getElementById('loading').style.display = 'flex';
+
+  for (const name of ALL_SHEET_NAMES) {
+    document.getElementById('loading-msg').textContent = `Carregando ${name}...`;
+    const rows = await fetchSheet(name);
+    if (rows.length > 0) {
+      allData[name] = rows;
+      loadedSheets.push(name);
+    }
+  }
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('last-update').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+
+  debugLog(`Sheets loaded: ${loadedSheets.join(', ')}`);
+
+  buildTabs();
+  buildFilters();
+  renderMonthlyChart();
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function buildTabs() {
+  // Default to last loaded sheet
+  if (!loadedSheets.includes(currentMonth)) {
+    currentMonth = loadedSheets[loadedSheets.length - 1] || '';
+  }
+
+  const strip = document.getElementById('month-tabs');
+  strip.innerHTML = '';
+  loadedSheets.forEach(m => {
+    const b = document.createElement('button');
+    b.className = 'tab-btn' + (m === currentMonth ? ' active' : '');
+    b.textContent = m;
+    b.onclick = () => {
+      currentMonth = m;
+      document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      buildFilters();
+    };
+    strip.appendChild(b);
+  });
+}
+
+// ─── FILTERS ──────────────────────────────────────────────────────────────────
+function buildFilters() {
+  const rows = allData[currentMonth] || [];
+  const fill = (id, key) => {
+    const sel = document.getElementById(id);
+    const cur = sel.value;
+    const vals = [...new Set(rows.map(r => String(r[key] || '')).filter(v => v.trim()))].sort();
+    sel.innerHTML = '<option value="">Todos</option>' + vals.map(v => `<option value="${v}">${v}</option>`).join('');
+    if (vals.includes(cur)) sel.value = cur;
+  };
+  fill('f-resp', 'Responsável');
+  fill('f-client', 'Cliente');
+  fill('f-status', 'Status');
+  applyFilters();
+}
+
+function applyFilters() {
+  const resp   = document.getElementById('f-resp').value;
+  const client = document.getElementById('f-client').value;
+  const status = document.getElementById('f-status').value;
+  let rows = allData[currentMonth] || [];
+  if (resp)   rows = rows.filter(r => String(r['Responsável'] || '') === resp);
+  if (client) rows = rows.filter(r => String(r['Cliente'] || '') === client);
+  if (status) rows = rows.filter(r => String(r['Status'] || '').includes(status));
+  filteredRows = rows;
+  renderCurrentMonth();
+}
+
+// ─── RENDER CURRENT MONTH ─────────────────────────────────────────────────────
+function renderCurrentMonth() {
+  renderBignums();
+  renderTable();
+  renderRespBars();
+  renderTypeChart();
+  renderStatusTypeChart();
+}
+
+// ─── BIG NUMBERS ──────────────────────────────────────────────────────────────
+function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
+
+function deltaPill(curr, prev) {
+  if (prev === null || prev === undefined || loadedSheets.indexOf(currentMonth) <= 0) {
+    return `<span class="delta-label">Primeiro mês carregado</span>`;
+  }
+  const diff = curr - prev;
+  const absPct = prev > 0 ? Math.round(Math.abs(diff) / prev * 100) : null;
+  const sign  = diff > 0 ? '+' : '';
+  const pStr  = absPct !== null ? ` (${sign}${absPct > 0 ? (diff > 0 ? '+' : '-') : ''}${absPct}%)` : '';
+  const cls   = diff > 0 ? 'delta-up' : diff < 0 ? 'delta-down' : 'delta-flat';
+  const arrow = diff > 0 ? '▲' : diff < 0 ? '▼' : '–';
+  return `<span class="delta-pill ${cls}">${arrow} ${sign}${diff}${pStr}</span><span class="delta-label">vs mês ant.</span>`;
+}
+
+function renderBignums() {
+  const r = filteredRows;
+  const p = getPrev();
+
+  const total = r.length,            pTotal = p.length;
+  const ent   = r.filter(isEntregue).length, pEnt = p.filter(isEntregue).length;
+  const prod  = r.filter(isProducao).length, pProd = p.filter(isProducao).length;
+  const pend  = r.filter(isPendente).length, pPend = p.filter(isPendente).length;
+  const taxa  = pct(ent, total),     pTaxa = pct(pEnt, pTotal);
+  const cli   = new Set(r.map(x => x['Cliente']).filter(Boolean)).size;
+  const pCli  = new Set(p.map(x => x['Cliente']).filter(Boolean)).size;
+
+  // Show status breakdown for debugging
+  const statusBox = document.getElementById('status-summary');
+  const uniqueStatuses = [...new Set(r.map(x => x['Status']))].filter(Boolean);
+  if (uniqueStatuses.length) {
+    statusBox.style.display = 'block';
+    statusBox.textContent = `Status encontrados neste mês: ${uniqueStatuses.join(' · ')}`;
+  } else {
+    statusBox.style.display = 'none';
+  }
+
+  const nums = [
+    { label: 'Total de Entregas',    val: total, curr: total, prev: pTotal, color: '#2563eb' },
+    { label: 'Entregues ✅',         val: ent,   curr: ent,   prev: pEnt,   color: '#16a34a' },
+    { label: 'Em Produção ⚙️',       val: prod,  curr: prod,  prev: pProd,  color: '#b45309' },
+    { label: 'Pendentes / Bloq. 🔴', val: pend,  curr: pend,  prev: pPend,  color: '#dc2626' },
+    { label: 'Taxa de Entrega',      val: taxa + '%', curr: taxa, prev: pTaxa, color: '#7c3aed' },
+    { label: 'Clientes Atendidos',   val: cli,   curr: cli,   prev: pCli,   color: '#c2410c' },
+  ];
+
+  document.getElementById('bignums').innerHTML = nums.map(n => `
+    <div class="bignum" style="--accent-line:${n.color}">
+      <div class="bignum-label">${n.label}</div>
+      <div class="bignum-value" style="color:${n.color}">${n.val}</div>
+      <div class="bignum-delta">${deltaPill(n.curr, n.prev)}</div>
+    </div>`).join('');
+}
+
+function getPrev() {
+  const idx = loadedSheets.indexOf(currentMonth);
+  if (idx <= 0) return [];
+  return allData[loadedSheets[idx - 1]] || [];
+}
+
+// ─── TABLE ────────────────────────────────────────────────────────────────────
+function renderTable() {
+  const rows = filteredRows;
+  document.getElementById('table-count').textContent = rows.length + ' registros';
+  const tb = document.getElementById('table-body');
+  if (!rows.length) {
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted)">Nenhum dado encontrado</td></tr>';
+    return;
+  }
+  tb.innerHTML = rows.map(r => {
+    const ns = normStatus(r['Status']);
+    let bc = 'badge-yellow';
+    if (ns === 'entregue') bc = 'badge-green';
+    else if (ns === 'outro' || ns === 'caiu') bc = 'badge-red';
+
+    // Try different possible obs column names
+    const obs = r['Obs'] || r['obs'] || r['Observações'] || r['Observacao'] || r['Observação'] || '';
+    const st  = r['Status'] || '—';
+    const dt  = fmtDate(r['Data Prevista'] || r['Data prevista']);
+
+    return `<tr>
+      <td class="td-client">${r['Cliente']||'—'}</td>
+      <td>${r['Entrega']||'—'}</td>
+      <td><span style="font-size:10px;color:var(--muted);background:var(--surface2);padding:2px 7px;border-radius:10px">${detectType(r['Entrega'])}</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${dt}</td>
+      <td>${r['Responsável']||r['Responsavel']||'—'}</td>
+      <td><span class="badge ${bc}"><span class="badge-dot"></span>${st}</span></td>
+      <td class="td-obs" title="${obs}">${obs}</td>
+    </tr>`;
+  }).join('');
+}
+
+function fmtDate(v) {
+  if (!v) return '—';
+  if (typeof v === 'string' && /\d{2}\/\d{2}\/\d{4}/.test(v)) return v;
+  if (typeof v === 'string' && v.includes('/')) return v;
+  try {
+    const d = new Date(v);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR');
+  } catch {}
+  return String(v) || '—';
+}
+
+// ─── RESP BARS ────────────────────────────────────────────────────────────────
+function renderRespBars() {
+  const rows = filteredRows, total = rows.length || 1;
+  const cnts = {};
+  rows.forEach(r => {
+    const k = (r['Responsável'] || r['Responsavel'] || 'N/D').trim();
+    if (k) cnts[k] = (cnts[k] || 0) + 1;
+  });
+  const sorted = Object.entries(cnts).sort((a, b) => b[1] - a[1]);
+  const max = sorted[0]?.[1] || 1;
+  const COLS = ['#2563eb','#7c3aed','#16a34a','#c2410c','#b45309','#dc2626','#0891b2','#6d28d9'];
+
+  document.getElementById('bar-resp').innerHTML = sorted.map(([nm, cnt], i) => `
+    <div class="bar-item">
+      <div class="bar-meta">
+        <span class="bar-name">${nm}</span>
+        <span class="bar-count">${cnt} <span style="color:var(--muted);font-size:10px">(${pct(cnt, total)}%)</span></span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(cnt/max*100)}%;background:${COLS[i%COLS.length]}"></div></div>
+    </div>`).join('') || '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Nenhum dado</div>';
+}
+
+// ─── CHARTS ───────────────────────────────────────────────────────────────────
+Chart.defaults.color = '#7a85a3';
+Chart.defaults.font.family = 'DM Sans';
+
+function dc(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function renderMonthlyChart() {
+  dc('monthly');
+  // Only show months that actually have data
+  const labels = loadedSheets;
+  const totals = labels.map(m => (allData[m] || []).length);
+  const ents   = labels.map(m => (allData[m] || []).filter(isEntregue).length);
+  const prods  = labels.map(m => (allData[m] || []).filter(isProducao).length);
+
+  charts['monthly'] = new Chart(document.getElementById('chart-monthly'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Total',        data: totals, backgroundColor: 'rgba(37,99,235,0.12)',  borderColor: '#2563eb', borderWidth: 1.5, borderRadius: 5 },
+        { label: 'Entregues',    data: ents,   backgroundColor: 'rgba(22,163,74,0.22)',  borderColor: '#16a34a', borderWidth: 1.5, borderRadius: 5 },
+        { label: 'Em Produção',  data: prods,  backgroundColor: 'rgba(180,83,9,0.18)',   borderColor: '#b45309', borderWidth: 1.5, borderRadius: 5 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { boxWidth: 10, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label(ctx) {
+              const v = ctx.raw || 0;
+              const tot = totals[ctx.dataIndex] || 1;
+              return ` ${ctx.dataset.label}: ${v} (${Math.round(v/tot*100)}% do total)`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 10 } } },
+        y: { grid: { color: 'rgba(0,0,0,0.04)' }, beginAtZero: true, ticks: { stepSize: 10, font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+function renderTypeChart() {
+  dc('type');
+  const rows = filteredRows, total = rows.length || 1;
+  const cnts = {};
+  rows.forEach(r => { const t = detectType(r['Entrega']); cnts[t] = (cnts[t]||0) + 1; });
+  const sorted = Object.entries(cnts).sort((a, b) => b[1] - a[1]);
+  const COLS = ['#2563eb','#7c3aed','#16a34a','#b45309','#c2410c','#dc2626','#0891b2','#6d28d9'];
+
+  charts['type'] = new Chart(document.getElementById('chart-type'), {
+    type: 'doughnut',
+    data: {
+      labels: sorted.map(s => s[0]),
+      datasets: [{ data: sorted.map(s => s[1]), backgroundColor: COLS, borderWidth: 2, borderColor: 'white', hoverOffset: 8 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            label(ctx) {
+              const v = ctx.raw || 0;
+              return ` ${ctx.label}: ${v} (${Math.round(v/total*100)}%)`;
+            }
+          }
+        }
+      },
+      cutout: '62%'
+    }
+  });
+}
+
+function renderStatusTypeChart() {
+  dc('status-type');
+  const rows = filteredRows, total = rows.length || 1;
+  const types = [...new Set(rows.map(r => detectType(r['Entrega'])))].sort();
+  const ents  = types.map(t => rows.filter(r => detectType(r['Entrega']) === t && isEntregue(r)).length);
+  const prods = types.map(t => rows.filter(r => detectType(r['Entrega']) === t && isProducao(r)).length);
+
+  charts['status-type'] = new Chart(document.getElementById('chart-status-type'), {
+    type: 'bar',
+    data: {
+      labels: types.map(t => t.length > 16 ? t.slice(0,14)+'…' : t),
+      datasets: [
+        { label: 'Entregue',    data: ents,  backgroundColor: 'rgba(22,163,74,0.22)',  borderColor: '#16a34a', borderWidth: 1.5, borderRadius: 4 },
+        { label: 'Em Produção', data: prods, backgroundColor: 'rgba(180,83,9,0.18)',   borderColor: '#b45309', borderWidth: 1.5, borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: {
+        legend: { labels: { boxWidth: 10, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label(ctx) {
+              const v = ctx.raw || 0;
+              return ` ${ctx.dataset.label}: ${v} (${Math.round(v/total*100)}% do total)`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,0.04)' }, stacked: true, beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } },
+        y: { grid: { color: 'rgba(0,0,0,0.04)' }, stacked: true, ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+// ─── FAROL ────────────────────────────────────────────────────────────────────
+const FK = 'bi-farol-v3';
+let fd = { red: [], yellow: [], green: [] };
+
+function loadFarol() {
+  try { fd = JSON.parse(localStorage.getItem(FK)) || { red:[], yellow:[], green:[] }; } catch {}
+  renderFarol();
+}
+function renderFarol() {
+  const icons = { red:'🔴', yellow:'🟡', green:'🟢' };
+  ['red','yellow','green'].forEach(c => {
+    document.getElementById('cnt-'+c).textContent = fd[c].length;
+    const ul = document.getElementById('farol-'+c);
+    if (!fd[c].length) { ul.innerHTML = '<li class="farol-empty">Nenhum item ainda</li>'; return; }
+    ul.innerHTML = fd[c].map((item, i) => `
+      <li class="farol-item">
+        <span class="farol-icon">${icons[c]}</span>
+        <span class="farol-text">${item}</span>
+        <button class="farol-del" onclick="delFarol('${c}',${i})" title="Remover">✕</button>
+      </li>`).join('');
+  });
+}
+function addFarol(c) {
+  const t = prompt('Descreva o item:');
+  if (!t?.trim()) return;
+  fd[c].push(t.trim()); saveFarol(); renderFarol();
+}
+function delFarol(c, i) { fd[c].splice(i, 1); saveFarol(); renderFarol(); }
+function saveFarol() { localStorage.setItem(FK, JSON.stringify(fd)); }
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+if (sessionStorage.getItem(SESS) === '1') {
+  loadFarol();
+  reloadData();
+}
+</script>
+</body>
+</html>
